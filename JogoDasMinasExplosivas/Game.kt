@@ -2,56 +2,114 @@ package minesweeper
 
 import kotlin.random.Random
 
-fun main() {
-    print("Quantas minas você quer que tenha no campo?: ")
-    val numMinas = readLine()!!.toInt()
-    var quantMinas = 0
-    
-    val campo = Array(9) { CharArray(9) { '.' } } // Inicializa o campo vazio
-    
-    // Coloca as minas aleatoriamente no campo
-    while (quantMinas < numMinas) {
-        val fila = Random.nextInt(9)
-        val coluna = Random.nextInt(9)
-        if (campo[fila][coluna] != 'X') {
-            campo[fila][coluna] = 'X'
-            quantMinas++
-        }
-    }
-    
-    // Preenche o campo com o número de minas ao redor das células vazias
-    for (i in 0 until campo.size) {
-        for (j in 0 until campo[i].size) {
-            if (campo[i][j] == '.') {
-                val numMinasAoRedor = contarMinasAoRedor(campo, i, j)
-                if (numMinasAoRedor > 0) {
-                    campo[i][j] = numMinasAoRedor.toString()[0]
-                }
-            }
-        }
-    }
-    
-    // Imprime o campo
-    for (linha in campo) {
-        println(linha.joinToString(""))
+const val COLUMNS = 9
+const val ROWS = 9
+
+val field = MutableList(ROWS) {
+    MutableList(COLUMNS) { '.' }
+}
+
+fun Char.isMine() = this == 'X'
+
+fun placeMine(
+    row: Int = Random.nextInt(ROWS),
+    column: Int = Random.nextInt(COLUMNS)
+) {
+    if (field[row][column].isMine()) {
+        placeMine()
+    } else {
+        field[row][column] = 'X'
     }
 }
 
-// Função auxiliar para contar o número de minas ao redor de uma célula
-fun contarMinasAoRedor(campo: Array<CharArray>, fila: Int, coluna: Int): Int {
-    var count = 0
-    val minFila = maxOf(0, fila - 1)
-    val maxFila = minOf(fila + 1, campo.size - 1)
-    val minColuna = maxOf(0, coluna - 1)
-    val maxColuna = minOf(coluna + 1, campo[fila].size - 1)
-    
-    for (i in minFila..maxFila) {
-        for (j in minColuna..maxColuna) {
-            if (campo[i][j] == 'X') {
-                count++
+fun onNonMineCell(
+    block: (r: Int, c: Int) -> Unit
+) {
+    repeat(ROWS) { r ->
+        repeat(COLUMNS) { c ->
+            if (!field[r][c].isMine()) {
+                block(r, c)
             }
         }
     }
-    
-    return count
+}
+
+fun calculateNeighbors() = onNonMineCell { r, c ->
+    var count = 0
+    for (nr in r - 1..r + 1) {
+        for (nc in c - 1..c + 1) {
+            if (nr >= 0 && nr < ROWS &&
+                    nc >= 0 && nc < COLUMNS &&
+                    !(nr == r && nc == c) &&
+                    field[nr][nc].isMine()) {
+                        count++
+            }
+        }
+    }
+    if (count != 0) field[r][c] = '0' + count
+}
+
+fun List<Char>.print() = map { cell ->
+    when(cell) {
+        'W', 'R' -> '*' // marked mine
+        'X' -> '.' // hide mine
+        else -> cell
+    }
+}.joinToString("")
+
+fun printField() {
+    // │123456789│
+    //—│—————————│
+    //9│.1.......│
+    //—│—————————│
+    print(" |")
+    repeat(COLUMNS) { c -> print(c + 1) }
+    print("|\n—|—————————|\n")
+    repeat(ROWS) { r ->
+        println("${r + 1}|${field[r].print()}|")
+    }
+    print("—|—————————|")
+}
+
+fun setupGame() {
+    println("How many mines do you want on the field?")
+    val mines = readln().toInt()
+    repeat(mines) { placeMine() }
+    calculateNeighbors()
+    printField()
+}
+
+fun markMine(row: Int, column: Int) {
+    field[row][column] = when(field[row][column]) {
+        in '1'..'8' -> {
+            println("There is a number here!")
+            return
+        }
+        'W' -> '.' // unmark wrongly marked mine
+        'R' -> 'X' // unmark rightly marked mine
+        '.' -> 'W' // mark wrongly marked mine
+        'X' -> 'R' // mark rightly marked mine
+        else -> throw IllegalStateException()
+    }
+    printField()
+}
+
+fun gameIsFinished() = !field.any { row ->
+    row.any { cell -> cell == 'X' || cell == 'W' }
+}
+
+fun markMines() {
+    while(!gameIsFinished()) {
+        println("Set/delete mines marks (x and y coordinates):")
+        val (x, y) = readln()
+            .split(" ")
+            .map { it.toInt() - 1 }
+        markMine(row = y, column = x)
+    }
+}
+
+fun main() {
+    setupGame()
+    markMines()
+    println("Congratulations! You found all the mines!")
 }
